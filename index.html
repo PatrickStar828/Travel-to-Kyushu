@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>九州之旅：行程與記帳</title>
+    <style>
+        body { background-color: #121212; color: #e0e0e0; font-family: 'Helvetica Neue', sans-serif; margin: 0; padding: 20px; }
+        h1, h2 { color: #bb86fc; }
+        .section { background-color: #1e1e1e; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        input, select { background-color: #333; color: white; border: 1px solid #555; padding: 8px; border-radius: 4px; margin-bottom: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; color: #e0e0e0; }
+        th, td { border: 1px solid #444; padding: 8px; text-align: center; }
+        .card { border-left: 4px solid #bb86fc; padding: 10px; margin-bottom: 15px; background-color: #252525; position: relative; }
+        .map-btn { position: absolute; bottom: 5px; right: 10px; font-size: 24px; text-decoration: none; }
+        button { background-color: #bb86fc; border: none; padding: 10px; color: white; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <h1>九州之旅行程 (2026/08/08-12)</h1>
+
+    <!-- 工具區 -->
+    <div class="section">
+        <h2>工具區</h2>
+        <a href="https://www.jma.go.jp/bosai/forecast/" target="_blank" style="color:#03dac6;">📍 日本氣象廳 (JMA) 天氣預報</a><br><br>
+        <label>日幣對台幣匯率:</label>
+        <input type="number" id="rate" value="0.22" step="0.01">
+    </div>
+
+    <!-- 記帳表格 -->
+    <div class="section">
+        <h2>每日花費統計</h2>
+        <input type="text" id="item" placeholder="項目 (如:午餐)">
+        <input type="number" id="cost" placeholder="金額 (日幣 ¥)">
+        <button onclick="addEntry()">新增紀錄</button>
+        
+        <table id="expenseTable">
+            <tr>
+                <th>項目</th>
+                <th>日幣</th>
+                <th>台幣</th>
+            </tr>
+        </table>
+        <p>總計花費: <span id="total" style="color:#03dac6; font-weight:bold;">0</span> TWD</p>
+    </div>
+
+    <!-- 行程內容 -->
+    <div class="section">
+        <h2>詳細行程</h2>
+        <div class="card"><h3>Day 1 (8/8)</h3><p>前往熊本，入住 ANA Crowne Plaza。</p></div>
+        <div class="card"><h3>Day 2 (8/9)</h3><p>佐賀城、日田豆田町、別府溫泉巡禮。</p><a href="https://www.google.com/maps/search/?api=1&query=佐賀城" class="map-btn" target="_blank">📍</a></div>
+        <div class="card"><h3>Day 3 (8/10)</h3><p>九州自然動物園、湯布院、金鱗湖。</p><a href="https://www.google.com/maps/search/?api=1&query=九州自然動物公園" class="map-btn" target="_blank">📍</a></div>
+        <div class="card"><h3>Day 4 (8/11)</h3><p>福岡塔、一蘭之森、三井 LALAPORT。</p><a href="https://www.google.com/maps/search/?api=1&query=福岡塔" class="map-btn" target="_blank">📍</a></div>
+        <div class="card"><h3>Day 5 (8/12)</h3><p>太宰府天滿宮、柳川遊船、返台。</p><a href="https://www.google.com/maps/search/?api=1&query=太宰府天滿宮" class="map-btn" target="_blank">📍</a></div>
+    </div>
+
+    <script>
+        let totalTwd = 0;
+        function addEntry() {
+            let item = document.getElementById('item').value;
+            let jpy = parseFloat(document.getElementById('cost').value);
+            let rate = parseFloat(document.getElementById('rate').value);
+            let twd = (jpy * rate).toFixed(0);
+
+            if(item && jpy) {
+                let table = document.getElementById('expenseTable');
+                let row = table.insertRow(-1);
+                row.insertCell(0).innerText = item;
+                row.insertCell(1).innerText = "¥" + jpy;
+                row.insertCell(2).innerText = twd;
+                
+                totalTwd += parseFloat(twd);
+                document.getElementById('total').innerText = totalTwd;
+                
+                document.getElementById('item').value = '';
+                document.getElementById('cost').value = '';
+            }
+        }
+    </script>
+</body>
+</html>
