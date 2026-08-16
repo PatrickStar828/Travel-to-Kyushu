@@ -57,7 +57,7 @@
     <!-- 頁首 Banner -->
     <header class="sticky top-0 z-30 bg-brand-bg">
       <div class="relative w-full h-[200px] overflow-hidden">
-        <img src="https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=1920" alt="旅遊橫幅" class="w-full h-full object-cover">
+        <img src="熊本熊與動物夥伴旅遊_Banner.jpg" alt="旅遊橫幅" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=1920'">
         <div class="absolute inset-0 bg-gradient-to-b from-black/20 to-transparent"></div>
         <div class="absolute top-3 left-4 bg-white/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-brand-orangeDark shadow">
           🍁 九州秋季之旅 2026
@@ -334,7 +334,11 @@
           <div 
             v-for="item in shoppingList" 
             :key="item.id"
-            @click="editShoppingItem(item)"
+            @touchstart="startPress('shopping', item)"
+            @touchend="cancelPress"
+            @mousedown="startPress('shopping', item)"
+            @mouseup="cancelPress"
+            @mouseleave="cancelPress"
             class="bg-white rounded-2xl overflow-hidden app-card p-3 border border-orange-100 flex flex-col justify-between cursor-pointer active:bg-orange-50/50 transition relative"
           >
             <div>
@@ -344,7 +348,7 @@
                   <i class="fa-solid fa-basket-shopping"></i>
                 </div>
               </div>
-              <div class="font-bold text-xs text-gray-800 line-clamp-2">{{ item.name || '點擊編輯名稱' }}</div>
+              <div class="font-bold text-xs text-gray-800 line-clamp-2">{{ item.name || '點擊長按編輯名稱' }}</div>
             </div>
 
             <div class="mt-2 pt-2 border-t border-orange-50 flex justify-between items-center text-[10px]">
@@ -355,6 +359,8 @@
                 ≈ ${{ Math.round((item.price || 0) * exchangeRate) }}
               </span>
             </div>
+            
+            <div class="text-[9px] text-gray-300 text-center mt-1">💡 長按 1 秒可編輯</div>
           </div>
         </div>
 
@@ -411,12 +417,17 @@
         <div class="space-y-2">
           <h3 class="font-bold text-sm text-gray-700 flex justify-between items-center">
             <span>消費紀錄列表</span>
+            <span class="text-[10px] text-gray-400 font-normal">💡 長按 1 秒可編輯項目</span>
           </h3>
 
           <div 
             v-for="record in expenses" 
             :key="record.id"
-            @click="editExpenseRecord(record)"
+            @touchstart="startPress('expense', record)"
+            @touchend="cancelPress"
+            @mousedown="startPress('expense', record)"
+            @mouseup="cancelPress"
+            @mouseleave="cancelPress"
             class="bg-white p-3 rounded-xl border border-orange-100 flex justify-between items-center shadow-sm cursor-pointer active:bg-orange-50/50 transition"
           >
             <div>
@@ -609,225 +620,432 @@
 
   </div>
 
-  <!-- Vue 3 核心 App 腳本 -->
   <script>
-    const { createApp, ref, computed } = Vue;
+    // 單一裝置本機儲存（取代原本的 Firebase 即時資料庫）
+    const LOCAL_STORAGE_KEY = 'kyushu-trip-2026';
+
+    const loadLocalData = () => {
+      try {
+        const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        console.error('讀取本機資料失敗', e);
+        return null;
+      }
+    };
+
+    const saveLocalData = (data) => {
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
+      } catch (e) {
+        console.error('寫入本機資料失敗', e);
+      }
+    };
+
+    // 預設編輯密碼
+    const DEFAULT_PASSWORD = '0828';
+
+    // 編輯密碼驗證邏輯
+    const checkAuth = () => {
+      if (sessionStorage.getItem('isAuthorized') === 'true') {
+        return true;
+      }
+      const pass = prompt('請輸入編輯驗證密碼：');
+      if (pass === DEFAULT_PASSWORD) {
+        sessionStorage.setItem('isAuthorized', 'true');
+        return true;
+      } else {
+        alert('密碼錯誤！無法進行操作。');
+        return false;
+      }
+    };
+
+    // 依據新附件檔案更新 Day 2 行程與餐點資訊
+    const defaultItineraries = [
+      [
+        { id: '101', category: '航班', title: '星宇航空 JX316 飛往熊本', desc: '搭乘星宇航空由台中直飛熊本空港', time: '15:00-18:15', ticket: '包含於團費', note: '晚餐：日式餐盒', transitTime: '', transitIcon: '' },
+        { id: '102', category: '住宿', title: 'ANA Crowne Plaza 熊本新天空全日空皇冠假日酒店', desc: '專車接送至飯店休息備戰明日行程', time: '24小時', ticket: '包含於團費', note: '晚餐：日式餐盒', transitTime: '40分', transitIcon: 'fa-solid fa-bus' }
+      ],
+      [
+        { id: '201', category: '景點', title: '熊本城', desc: '入內參觀日本三大名城之一，感受歷史底蘊。', time: '09:00-17:00', ticket: '包含於團費', note: '早餐：飯店內用', transitTime: '15分', transitIcon: 'fa-solid fa-bus' },
+        { id: '202', category: '景點', title: '櫻之馬場・城彩苑', desc: '重現江戶時代城下町風情，漫步「櫻之小路」。', time: '09:00-19:00', ticket: '免費散策', note: '漫步體驗城下町街景', transitTime: '5分', transitIcon: 'fa-solid fa-person-walking' },
+        { id: '203', category: '景點', title: '草千里之濱', desc: '欣賞阿蘇地區國家名勝天然紀念物的大草原景觀。', time: '全天開放', ticket: '免費參觀', note: '午餐：阿蘇風味餐 (2500¥)', transitTime: '50分', transitIcon: 'fa-solid fa-bus' },
+        { id: '204', category: '景點', title: '別府空中纜車', desc: '搭乘纜車登上鶴見岳（海拔1370公尺），俯瞰別府灣全景。', time: '09:00-17:00', ticket: '包含於團費', note: '搭乘纜車遠眺別府灣景色', transitTime: '75分', transitIcon: 'fa-solid fa-bus' },
+        { id: '205', category: '住宿', title: '温泉杉乃井ホテル虹館 (別府溫泉鄉)', desc: '抵達別府溫泉飯店，享用晚餐與泡湯體驗。', time: '入住15:00後', ticket: '包含於團費', note: '晚餐：溫泉飯店豪華自助餐', transitTime: '20分', transitIcon: 'fa-solid fa-bus' }
+      ],
+      [
+        { id: '301', category: '景點', title: '九州自然動物園', desc: '預計搭乘「叢林巴士」近距離接觸野生動物', time: '09:00-16:30', ticket: '包含於團費', note: '若遇現場無法搭乘退費¥1000', transitTime: '30分', transitIcon: 'fa-solid fa-bus' },
+        { id: '302', category: '景點', title: '湯布院藝術小鎮', desc: '漫步於充滿浪漫氛圍的溫泉小鎮，特別贈送每人乙份醬油布丁', time: '全天開放', ticket: '免費散策', note: '午餐：湯布院蒸籠料理 (2500¥)', transitTime: '35分', transitIcon: 'fa-solid fa-bus' },
+        { id: '303', category: '景點', title: '金鱗湖森林小徑', desc: '欣賞湖光山色與夢幻仙境般的景色', time: '全天開放', ticket: '免費', note: '漫步於森林步道', transitTime: '10分', transitIcon: 'fa-solid fa-person-walking' },
+        { id: '304', category: '住宿', title: '福岡 蒙特埃馬納酒店 (Hotel Monte Hermana Fukuoka)', desc: '位於福岡市中心，專車前往福岡', time: '入住15:00後', ticket: '包含於團費', note: '晚餐：長腳蟹放題+酒水暢飲 (5500¥)', transitTime: '90分', transitIcon: 'fa-solid fa-bus' }
+      ],
+      [
+        { id: '401', category: '景點', title: '福岡巨蛋', desc: '外觀拍照留念', time: '外觀開放', ticket: '免費', note: '外觀拍照留念', transitTime: '20分', transitIcon: 'fa-solid fa-bus' },
+        { id: '402', category: '景點', title: '福岡塔展望台', desc: '登上日本最高海濱塔，俯瞰福岡市景與博多灣', time: '09:30-22:00', ticket: '包含於團費', note: '鳥瞰福岡美麗海岸線', transitTime: '10分', transitIcon: 'fa-solid fa-bus' },
+        { id: '403', category: '景點', title: '一蘭之森博物館', desc: '了解一蘭拉麵歷史並品嚐道地拉麵', time: '10:00-16:00', ticket: '免費參觀', note: '午餐：日式拉麵餐 (1500¥)', transitTime: '30分', transitIcon: 'fa-solid fa-bus' },
+        { id: '404', category: '購物', title: '免稅店', desc: '盡情選購日本伴手禮', time: '營業時間內', ticket: '免費', note: '採購在地特色商品', transitTime: '20分', transitIcon: 'fa-solid fa-bus' },
+        { id: '405', category: '購物', title: '三井 LALAPORT', desc: '參觀 1:1 巨型鋼彈模型，並於商場內自由購物', time: '10:00-21:00', ticket: '免費購物', note: '晚餐：日式燒肉放題 (3000¥)', transitTime: '25分', transitIcon: 'fa-solid fa-bus' }
+      ],
+      [
+        { id: '501', category: '景點', title: '太宰府天滿宮', desc: '祭祀學問之神，特別贈送當地名物「梅枝餅」', time: '06:30-19:00', ticket: '免費參觀', note: '特別贈送梅枝餅乙個', transitTime: '30分', transitIcon: 'fa-solid fa-bus' },
+        { id: '502', category: '景點', title: '太宰府觀光列車 (旅人列車)', desc: '搭乘特色列車，體驗日式風情', time: '依班次運行', ticket: '包含於團費', note: '若遇檢修運休改巴士並退費大人¥200/小孩¥100', transitTime: '15分', transitIcon: 'fa-solid fa-train' },
+        { id: '503', category: '景點', title: '柳川遊船', desc: '乘坐小舟沿著護城河，體驗「九州小威尼斯」的水鄉風情', time: '09:00-17:00', ticket: '包含於團費', note: '午餐：鰻魚飯定食 (2500¥)', transitTime: '45分', transitIcon: 'fa-solid fa-bus' }
+      ]
+    ];
+
+    const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
     createApp({
       setup() {
         const currentTab = ref('itinerary');
         const selectedDayIndex = ref(0);
-        const exchangeRate = ref(0.22);
-        const calcJpy = ref(1000);
+        const exchangeRate = ref(0.215);
+        const calcJpy = ref('');
 
-        const days = ref([
-          { date: '10/16', week: '五', location: '熊本' },
-          { date: '10/17', week: '六', location: '別府' },
-          { date: '10/18', week: '日', location: '湯布院' },
-          { date: '10/19', week: '一', location: '福岡' },
-          { date: '10/20', week: '二', location: '柳川/返台' }
-        ]);
+        const days = [
+          { week: '五', date: '10/16', location: '熊本' },
+          { week: '六', date: '10/17', location: '別府' },
+          { week: '日', date: '10/18', location: '福岡' },
+          { week: '一', date: '10/19', location: '福岡' },
+          { week: '二', date: '10/20', location: '太宰府' }
+        ];
 
-        const itineraryData = ref({
-          0: [
-            { id: 1, category: '航班', title: '星宇航空 JX316' },
-            { id: 2, category: '住宿', title: 'ANA Crowne Plaza 熊本新天空全日空皇冠假日酒店', desc: '豪華住宿首選', time: '15:00 入住' }
-          ],
-          1: [
-            { id: 3, category: '景點', title: '佐賀城本丸御殿', desc: '古色古香佐賀城', time: '09:00-18:00', ticket: '免費入館' },
-            { id: 4, category: '景點', title: '別府海地獄', desc: '經典藍色地獄溫泉', time: '08:00-17:00', ticket: '450日圓' }
-          ],
-          2: [
-            { id: 5, category: '景點', title: '九州自然動物公園', desc: '可近距離接觸野生動物', time: '09:00-16:30', ticket: '2600日圓' },
-            { id: 6, category: '景點', title: '金鱗湖', desc: '夢幻晨霧絕景', time: '全天開放' }
-          ],
-          3: [
-            { id: 7, category: '景點', title: '福岡塔', desc: '日本最高海濱塔', time: '09:30-22:00', ticket: '800日圓' },
-            { id: 8, category: '購物', title: '三井 LALAPORT 福岡', desc: '1:1鋼彈模型地標', time: '10:00-21:00' }
-          ],
-          4: [
-            { id: 9, category: '景點', title: '太宰府天滿宮', desc: '學問之神總本宮', time: '06:30-19:00' },
-            { id: 10, category: '景點', title: '柳川遊船', desc: '體驗小舟遊河樂趣', time: '09:00-17:00' }
-          ]
+        const currentWeather = computed(() => {
+          const weathers = [
+            { icon: 'fa-solid fa-sun', condition: '晴朗', temp: 22, feelsLike: 23 },
+            { icon: 'fa-solid fa-cloud-sun', condition: '多雲時晴', temp: 20, feelsLike: 20 },
+            { icon: 'fa-solid fa-cloud', condition: '陰天', temp: 19, feelsLike: 18 },
+            { icon: 'fa-solid fa-cloud-rain', condition: '短暫雨', temp: 17, feelsLike: 16 },
+            { icon: 'fa-solid fa-sun', condition: '晴朗', temp: 21, feelsLike: 22 }
+          ];
+          return weathers[selectedDayIndex.value];
         });
 
-        const hotels = ref([
-          { day: 'Day 1', name: 'ANA Crowne Plaza 熊本新天空', address: '熊本市中央區東阿彌陀寺町2', img: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500', url: 'https://www.ihg.com' },
-          { day: 'Day 2', name: '別府龜之井飯店', address: '大分縣別府市中央町5-17', img: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=500', url: '#' },
-          { day: 'Day 3-4', name: '福岡蒙特埃爾馬納飯店', address: '福岡市中央區渡邊通3-4-24', img: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=500', url: '#' }
-        ]);
+        const hotels = [
+          { 
+            day: 'Day 1', 
+            name: 'ANA Crowne Plaza 熊本新天空全日空皇冠假日酒店', 
+            address: '2 Higashiamidaji-machi Chuo-ku Kumamoto', 
+            url: 'https://www.ihg.com/crowneplaza/hotels/tw/zh/kumamoto/kmjja/hoteldetail', 
+            img: 'ANA Crowne Plaza 熊本新天空全日空皇冠假日酒店.jpg' 
+          },
+          { 
+            day: 'Day 2', 
+            name: '温泉杉乃井ホテル虹館', 
+            address: '日本〒874-0823 Oita, Beppu, 觀海寺1', 
+            url: 'https://suginoi.orixhotelsandresorts.com/contents/nijikan/', 
+            img: '温泉杉乃井ホテル虹館.jpg' 
+          },
+          { 
+            day: 'Day 3 & Day 4', 
+            name: '福岡 蒙特埃馬納酒店 (Hotel Monte Hermana Fukuoka)', 
+            address: '3 Chome-4-24 Watanabedori, Chuo Ward, Fukuoka', 
+            url: 'https://www.monte-hermana.jp/cn/fukuoka/', 
+            img: '福岡蒙特埃馬納酒店.jpg' 
+          }
+        ];
 
-        const shoppingList = ref([
-          { id: 1, name: '一蘭拉麵泡麵禮盒', price: 2000, img: '' },
-          { id: 2, name: '太宰府梅枝餅', price: 600, img: '' }
-        ]);
-
-        const expenses = ref([
-          { id: 1, category: '飲食', name: '日田地區午餐', date: '10/17', amount: 2500, payment: '現金', note: '' }
-        ]);
-
+        const itineraries = ref([[], [], [], [], []]);
         const coupons = ref([]);
+        const shoppingList = ref([]);
+        const expenses = ref([]);
 
-        // Modal 控制與表單
+        const initSortable = () => {
+          nextTick(() => {
+            const el = document.getElementById('itinerary-list');
+            if (el && typeof Sortable !== 'undefined') {
+              if (el._sortable) el._sortable.destroy();
+              el._sortable = Sortable.create(el, {
+                animation: 150,
+                handle: '.handle',
+                onEnd: (evt) => {
+                  if (!checkAuth()) return;
+                  const dayList = itineraries.value[selectedDayIndex.value];
+                  const movedItem = dayList.splice(evt.oldIndex, 1)[0];
+                  dayList.splice(evt.newIndex, 0, movedItem);
+                  saveAllToLocal();
+                }
+              });
+            }
+          });
+        };
+
+        // 本機資料讀取與初始化
+        onMounted(() => {
+          const data = loadLocalData();
+          if (data) {
+            itineraries.value = data.itineraries || defaultItineraries;
+            shoppingList.value = data.shoppingList || [];
+            expenses.value = data.expenses || [];
+            coupons.value = data.coupons || [];
+          } else {
+            itineraries.value = defaultItineraries;
+            saveAllToLocal();
+          }
+          initSortable();
+        });
+
+        // 將目前所有資料整包寫入 localStorage
+        const saveAllToLocal = () => {
+          saveLocalData({
+            itineraries: itineraries.value,
+            shoppingList: shoppingList.value,
+            expenses: expenses.value,
+            coupons: coupons.value
+          });
+        };
+
+        const currentDay = computed(() => days[selectedDayIndex.value]);
+
+        const currentItinerary = computed(() => itineraries.value[selectedDayIndex.value] || []);
+
+        const getRouteUrl = (fromItem, toItem) => {
+          if (!fromItem || !toItem) return '#';
+          const origin = encodeURIComponent(fromItem.title);
+          const destination = encodeURIComponent(toItem.title);
+          return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+        };
+
+        const getSpotImage = (title) => {
+          const validImages = [
+            "ANA Crowne Plaza 熊本新天空全日空皇冠假日酒店",
+            "一蘭之森博物館",
+            "九州自然動物園",
+            "三井 LALAPORT",
+            "太宰府天滿宮",
+            "太宰府觀光列車",
+            "別府空中纜車",
+            "温泉杉乃井ホテル虹館",
+            "福岡蒙特埃馬納酒店"
+          ];
+
+          for (const imgName of validImages) {
+            if (title.includes(imgName) || imgName.includes(title)) {
+              return `${imgName}.jpg`;
+            }
+          }
+          return `${title}.jpg`;
+        };
+
+        // 行程 Modal 相關
         const showModal = ref(false);
         const isEdit = ref(false);
         const modalForm = ref({ id: null, category: '景點', title: '', desc: '', time: '', ticket: '', note: '' });
 
-        const showShoppingModal = ref(false);
-        const isShoppingEdit = ref(false);
-        const shoppingForm = ref({ id: null, name: '', price: 0, img: '' });
-
-        const showExpenseModal = ref(false);
-        const isExpenseEdit = ref(false);
-        const expenseForm = ref({ id: null, category: '飲食', name: '', date: '10/16', amount: 0, payment: '現金', note: '' });
-
-        // Computed
-        const currentDay = computed(() => days.value[selectedDayIndex.value]);
-        const currentItinerary = computed(() => itineraryData.value[selectedDayIndex.value] || []);
-        const totalExpensesJpy = computed(() => expenses.value.reduce((sum, item) => sum + Number(item.amount || 0), 0));
-        
-        const currentWeather = computed(() => {
-          return { condition: '晴時多雲', temp: 21, feelsLike: 20, icon: 'fa-solid fa-sun' };
-        });
-
-        // Helper Functions
-        const getCategoryBadgeClass = (cat) => {
-          const map = {
-            '景點': 'bg-orange-100 text-orange-700',
-            '美食': 'bg-red-100 text-red-700',
-            '住宿': 'bg-blue-100 text-blue-700',
-            '購物': 'bg-purple-100 text-purple-700'
-          };
-          return map[cat] || 'bg-gray-100 text-gray-700';
-        };
-
-        const getSpotImage = (title) => {
-          return 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?w=300';
-        };
-
-        const getRouteUrl = (from, to) => {
-          return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.title)}&destination=${encodeURIComponent(to.title)}`;
-        };
-
-        // Modal Handlers
         const openAddModal = () => {
+          if (!checkAuth()) return;
           isEdit.value = false;
-          modalForm.value = { id: Date.now(), category: '景點', title: '', desc: '', time: '', ticket: '', note: '' };
+          modalForm.value = { id: 'item_' + Date.now(), category: '景點', title: '', desc: '', time: '', ticket: '', note: '' };
           showModal.value = true;
         };
 
         const openEditModal = (item) => {
+          if (!checkAuth()) return;
           isEdit.value = true;
           modalForm.value = { ...item };
           showModal.value = true;
         };
 
         const saveItinerary = () => {
-          const list = itineraryData.value[selectedDayIndex.value] || [];
+          const dayList = itineraries.value[selectedDayIndex.value] || [];
           if (isEdit.value) {
-            const idx = list.findIndex(i => i.id === modalForm.value.id);
-            if (idx !== -1) list[idx] = { ...modalForm.value };
+            const index = dayList.findIndex(i => i.id === modalForm.value.id);
+            if (index !== -1) dayList[index] = { ...modalForm.value };
           } else {
-            list.push({ ...modalForm.value, id: Date.now() });
+            dayList.push({ ...modalForm.value, transitTime: '20分', transitIcon: 'fa-solid fa-car' });
           }
-          itineraryData.value[selectedDayIndex.value] = list;
+          saveAllToLocal();
           showModal.value = false;
         };
 
         const confirmDeleteItinerary = () => {
-          itineraryData.value[selectedDayIndex.value] = itineraryData.value[selectedDayIndex.value].filter(i => i.id !== modalForm.value.id);
-          showModal.value = false;
-        };
-
-        // Shopping
-        const openAddShoppingModal = () => {
-          isShoppingEdit.value = false;
-          shoppingForm.value = { id: Date.now(), name: '', price: 0, img: '' };
-          showShoppingModal.value = true;
-        };
-
-        const editShoppingItem = (item) => {
-          isShoppingEdit.value = true;
-          shoppingForm.value = { ...item };
-          showShoppingModal.value = true;
-        };
-
-        const saveShoppingItem = () => {
-          if (isShoppingEdit.value) {
-            const idx = shoppingList.value.findIndex(i => i.id === shoppingForm.value.id);
-            if (idx !== -1) shoppingList.value[idx] = { ...shoppingForm.value };
-          } else {
-            shoppingList.value.push({ ...shoppingForm.value, id: Date.now() });
+          if (confirm('確定要刪除這個行程嗎？')) {
+            const dayList = itineraries.value[selectedDayIndex.value];
+            itineraries.value[selectedDayIndex.value] = dayList.filter(i => i.id !== modalForm.value.id);
+            saveAllToLocal();
+            showModal.value = false;
           }
-          showShoppingModal.value = false;
         };
 
-        const deleteShoppingItem = () => {
-          shoppingList.value = shoppingList.value.filter(i => i.id !== shoppingForm.value.id);
-          showShoppingModal.value = false;
+        // 購物清單相關
+        const showShoppingModal = ref(false);
+        const isShoppingEdit = ref(false);
+        const shoppingForm = ref({ id: null, name: '', price: 0, img: '' });
+
+        const uploadCoupon = (e) => {
+          if (!checkAuth()) return;
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              coupons.value.push(evt.target.result);
+              saveAllToLocal();
+            };
+            reader.readAsDataURL(file);
+          }
+        };
+
+        const removeCoupon = (idx) => {
+          if (!checkAuth()) return;
+          coupons.value.splice(idx, 1);
+          saveAllToLocal();
+        };
+
+        const openAddShoppingModal = () => {
+          if (!checkAuth()) return;
+          isShoppingEdit.value = false;
+          shoppingForm.value = { id: 'shop_' + Date.now(), name: '', price: 0, img: '' };
+          showShoppingModal.value = true;
         };
 
         const handleShoppingImgUpload = (e) => {
           const file = e.target.files[0];
           if (file) {
             const reader = new FileReader();
-            reader.onload = (evt) => shoppingForm.value.img = evt.target.result;
+            reader.onload = (evt) => {
+              shoppingForm.value.img = evt.target.result;
+            };
             reader.readAsDataURL(file);
           }
         };
 
-        // Expense
-        const openAddExpenseModal = () => {
-          isExpenseEdit.value = false;
-          expenseForm.value = { id: Date.now(), category: '飲食', name: '', date: currentDay.value.date, amount: 0, payment: '現金', note: '' };
-          showExpenseModal.value = true;
+        const saveShoppingItem = () => {
+          const idx = shoppingList.value.findIndex(i => i.id === shoppingForm.value.id);
+          if (idx !== -1) {
+            shoppingList.value[idx] = { ...shoppingForm.value };
+          } else {
+            shoppingList.value.push({ ...shoppingForm.value });
+          }
+          saveAllToLocal();
+          showShoppingModal.value = false;
         };
 
-        const editExpenseRecord = (record) => {
-          isExpenseEdit.value = true;
-          expenseForm.value = { ...record };
+        const deleteShoppingItem = () => {
+          const idx = shoppingList.value.findIndex(i => i.id === shoppingForm.value.id);
+          if (idx !== -1) shoppingList.value.splice(idx, 1);
+          saveAllToLocal();
+          showShoppingModal.value = false;
+        };
+
+        // 記帳相關
+        const showExpenseModal = ref(false);
+        const isExpenseEdit = ref(false);
+        const expenseForm = ref({ id: null, category: '飲食', name: '', date: '10/16', amount: 0, payment: '現金', note: '' });
+
+        const totalExpensesJpy = computed(() => {
+          return expenses.value.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+        });
+
+        const openAddExpenseModal = () => {
+          if (!checkAuth()) return;
+          isExpenseEdit.value = false;
+          expenseForm.value = {
+            id: 'exp_' + Date.now(),
+            category: '飲食',
+            name: '',
+            date: days[selectedDayIndex.value].date,
+            amount: '',
+            payment: '現金',
+            note: ''
+          };
           showExpenseModal.value = true;
         };
 
         const saveExpenseRecord = () => {
-          if (isExpenseEdit.value) {
-            const idx = expenses.value.findIndex(i => i.id === expenseForm.value.id);
-            if (idx !== -1) expenses.value[idx] = { ...expenseForm.value };
+          const idx = expenses.value.findIndex(i => i.id === expenseForm.value.id);
+          if (idx !== -1) {
+            expenses.value[idx] = { ...expenseForm.value };
           } else {
-            expenses.value.push({ ...expenseForm.value, id: Date.now() });
+            expenses.value.push({ ...expenseForm.value });
           }
+          saveAllToLocal();
           showExpenseModal.value = false;
         };
 
         const deleteExpenseRecord = () => {
-          expenses.value = expenses.value.filter(i => i.id !== expenseForm.value.id);
+          const idx = expenses.value.findIndex(i => i.id === expenseForm.value.id);
+          if (idx !== -1) expenses.value.splice(idx, 1);
+          saveAllToLocal();
           showExpenseModal.value = false;
         };
 
-        // Coupon Upload
-        const uploadCoupon = (e) => {
-          const file = e.target.files[0];
-          if (file) {
-            const reader = new FileReader();
-            reader.onload = (evt) => coupons.value.push(evt.target.result);
-            reader.readAsDataURL(file);
+        // 長按手勢發動 Modal 編輯
+        let pressTimer = null;
+        const startPress = (type, item) => {
+          cancelPress();
+          pressTimer = setTimeout(() => {
+            if (!checkAuth()) return;
+            if (type === 'shopping') {
+              isShoppingEdit.value = true;
+              shoppingForm.value = { ...item };
+              showShoppingModal.value = true;
+            } else if (type === 'expense') {
+              isExpenseEdit.value = true;
+              expenseForm.value = { ...item };
+              showExpenseModal.value = true;
+            }
+          }, 1000);
+        };
+
+        const cancelPress = () => {
+          if (pressTimer) {
+            clearTimeout(pressTimer);
+            pressTimer = null;
           }
         };
 
-        const removeCoupon = (idx) => {
-          coupons.value.splice(idx, 1);
+        const getCategoryBadgeClass = (category) => {
+          switch (category) {
+            case '景點': return 'bg-sky-100 text-sky-600';
+            case '美食': return 'bg-orange-100 text-orange-600';
+            case '住宿': return 'bg-purple-100 text-purple-600';
+            case '購物': return 'bg-pink-100 text-pink-600';
+            default: return 'bg-gray-100 text-gray-600';
+          }
         };
 
         return {
-          currentTab, selectedDayIndex, exchangeRate, calcJpy, days, itineraryData, hotels,
-          shoppingList, expenses, coupons, showModal, isEdit, modalForm, showShoppingModal,
-          isShoppingEdit, shoppingForm, showExpenseModal, isExpenseEdit, expenseForm,
-          currentDay, currentItinerary, totalExpensesJpy, currentWeather,
-          getCategoryBadgeClass, getSpotImage, getRouteUrl, openAddModal, openEditModal,
-          saveItinerary, confirmDeleteItinerary, openAddShoppingModal, editShoppingItem,
-          saveShoppingItem, deleteShoppingItem, handleShoppingImgUpload, openAddExpenseModal,
-          editExpenseRecord, saveExpenseRecord, deleteExpenseRecord, uploadCoupon, removeCoupon
-        };
+          currentTab,
+          selectedDayIndex,
+          days,
+          currentDay,
+          currentWeather,
+          currentItinerary,
+          getRouteUrl,
+          getSpotImage,
+          hotels,
+          showModal,
+          isEdit,
+          modalForm,
+          openAddModal,
+          openEditModal,
+          saveItinerary,
+          confirmDeleteItinerary,
+          coupons,
+          shoppingList,
+          uploadCoupon,
+          removeCoupon,
+          showShoppingModal,
+          isShoppingEdit,
+          shoppingForm,
+          openAddShoppingModal,
+          handleShoppingImgUpload,
+          saveShoppingItem,
+          deleteShoppingItem,
+          exchangeRate,
+          calcJpy,
+          expenses,
+          totalExpensesJpy,
+          showExpenseModal,
+          isExpenseEdit,
+          expenseForm,
+          openAddExpenseModal,
+          saveExpenseRecord,
+          deleteExpenseRecord,
+          startPress,
+          cancelPress,
+          getCategoryBadgeClass
+        }
       }
     }).mount('#app');
   </script>
