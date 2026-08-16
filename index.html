@@ -35,10 +35,6 @@
   <!-- SortableJS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 
-  <!-- Firebase SDKs (v9 Compat) -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-
   <style>
     [v-cloak] { display: none !important; }
     body {
@@ -61,7 +57,7 @@
     <!-- 頁首 Banner -->
     <header class="sticky top-0 z-30 bg-brand-bg">
       <div class="relative w-full h-[200px] overflow-hidden">
-        <img src="熊本熊與動物夥伴旅遊_Banner.jpg" alt="旅遊橫幅" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=1920'">
+        <img src="https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=1920" alt="旅遊橫幅" class="w-full h-full object-cover">
         <div class="absolute inset-0 bg-gradient-to-b from-black/20 to-transparent"></div>
         <div class="absolute top-3 left-4 bg-white/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-brand-orangeDark shadow">
           🍁 九州秋季之旅 2026
@@ -338,11 +334,7 @@
           <div 
             v-for="item in shoppingList" 
             :key="item.id"
-            @touchstart="startPress('shopping', item)"
-            @touchend="cancelPress"
-            @mousedown="startPress('shopping', item)"
-            @mouseup="cancelPress"
-            @mouseleave="cancelPress"
+            @click="editShoppingItem(item)"
             class="bg-white rounded-2xl overflow-hidden app-card p-3 border border-orange-100 flex flex-col justify-between cursor-pointer active:bg-orange-50/50 transition relative"
           >
             <div>
@@ -352,7 +344,7 @@
                   <i class="fa-solid fa-basket-shopping"></i>
                 </div>
               </div>
-              <div class="font-bold text-xs text-gray-800 line-clamp-2">{{ item.name || '點擊長按編輯名稱' }}</div>
+              <div class="font-bold text-xs text-gray-800 line-clamp-2">{{ item.name || '點擊編輯名稱' }}</div>
             </div>
 
             <div class="mt-2 pt-2 border-t border-orange-50 flex justify-between items-center text-[10px]">
@@ -363,8 +355,6 @@
                 ≈ ${{ Math.round((item.price || 0) * exchangeRate) }}
               </span>
             </div>
-            
-            <div class="text-[9px] text-gray-300 text-center mt-1">💡 長按 1 秒可編輯</div>
           </div>
         </div>
 
@@ -421,17 +411,12 @@
         <div class="space-y-2">
           <h3 class="font-bold text-sm text-gray-700 flex justify-between items-center">
             <span>消費紀錄列表</span>
-            <span class="text-[10px] text-gray-400 font-normal">💡 長按 1 秒可編輯項目</span>
           </h3>
 
           <div 
             v-for="record in expenses" 
             :key="record.id"
-            @touchstart="startPress('expense', record)"
-            @touchend="cancelPress"
-            @mousedown="startPress('expense', record)"
-            @mouseup="cancelPress"
-            @mouseleave="cancelPress"
+            @click="editExpenseRecord(record)"
             class="bg-white p-3 rounded-xl border border-orange-100 flex justify-between items-center shadow-sm cursor-pointer active:bg-orange-50/50 transition"
           >
             <div>
@@ -624,6 +609,227 @@
 
   </div>
 
+  <!-- Vue 3 核心 App 腳本 -->
   <script>
+    const { createApp, ref, computed } = Vue;
+
+    createApp({
+      setup() {
+        const currentTab = ref('itinerary');
+        const selectedDayIndex = ref(0);
+        const exchangeRate = ref(0.22);
+        const calcJpy = ref(1000);
+
+        const days = ref([
+          { date: '10/16', week: '五', location: '熊本' },
+          { date: '10/17', week: '六', location: '別府' },
+          { date: '10/18', week: '日', location: '湯布院' },
+          { date: '10/19', week: '一', location: '福岡' },
+          { date: '10/20', week: '二', location: '柳川/返台' }
+        ]);
+
+        const itineraryData = ref({
+          0: [
+            { id: 1, category: '航班', title: '星宇航空 JX316' },
+            { id: 2, category: '住宿', title: 'ANA Crowne Plaza 熊本新天空全日空皇冠假日酒店', desc: '豪華住宿首選', time: '15:00 入住' }
+          ],
+          1: [
+            { id: 3, category: '景點', title: '佐賀城本丸御殿', desc: '古色古香佐賀城', time: '09:00-18:00', ticket: '免費入館' },
+            { id: 4, category: '景點', title: '別府海地獄', desc: '經典藍色地獄溫泉', time: '08:00-17:00', ticket: '450日圓' }
+          ],
+          2: [
+            { id: 5, category: '景點', title: '九州自然動物公園', desc: '可近距離接觸野生動物', time: '09:00-16:30', ticket: '2600日圓' },
+            { id: 6, category: '景點', title: '金鱗湖', desc: '夢幻晨霧絕景', time: '全天開放' }
+          ],
+          3: [
+            { id: 7, category: '景點', title: '福岡塔', desc: '日本最高海濱塔', time: '09:30-22:00', ticket: '800日圓' },
+            { id: 8, category: '購物', title: '三井 LALAPORT 福岡', desc: '1:1鋼彈模型地標', time: '10:00-21:00' }
+          ],
+          4: [
+            { id: 9, category: '景點', title: '太宰府天滿宮', desc: '學問之神總本宮', time: '06:30-19:00' },
+            { id: 10, category: '景點', title: '柳川遊船', desc: '體驗小舟遊河樂趣', time: '09:00-17:00' }
+          ]
+        });
+
+        const hotels = ref([
+          { day: 'Day 1', name: 'ANA Crowne Plaza 熊本新天空', address: '熊本市中央區東阿彌陀寺町2', img: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500', url: 'https://www.ihg.com' },
+          { day: 'Day 2', name: '別府龜之井飯店', address: '大分縣別府市中央町5-17', img: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=500', url: '#' },
+          { day: 'Day 3-4', name: '福岡蒙特埃爾馬納飯店', address: '福岡市中央區渡邊通3-4-24', img: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=500', url: '#' }
+        ]);
+
+        const shoppingList = ref([
+          { id: 1, name: '一蘭拉麵泡麵禮盒', price: 2000, img: '' },
+          { id: 2, name: '太宰府梅枝餅', price: 600, img: '' }
+        ]);
+
+        const expenses = ref([
+          { id: 1, category: '飲食', name: '日田地區午餐', date: '10/17', amount: 2500, payment: '現金', note: '' }
+        ]);
+
+        const coupons = ref([]);
+
+        // Modal 控制與表單
+        const showModal = ref(false);
+        const isEdit = ref(false);
+        const modalForm = ref({ id: null, category: '景點', title: '', desc: '', time: '', ticket: '', note: '' });
+
+        const showShoppingModal = ref(false);
+        const isShoppingEdit = ref(false);
+        const shoppingForm = ref({ id: null, name: '', price: 0, img: '' });
+
+        const showExpenseModal = ref(false);
+        const isExpenseEdit = ref(false);
+        const expenseForm = ref({ id: null, category: '飲食', name: '', date: '10/16', amount: 0, payment: '現金', note: '' });
+
+        // Computed
+        const currentDay = computed(() => days.value[selectedDayIndex.value]);
+        const currentItinerary = computed(() => itineraryData.value[selectedDayIndex.value] || []);
+        const totalExpensesJpy = computed(() => expenses.value.reduce((sum, item) => sum + Number(item.amount || 0), 0));
+        
+        const currentWeather = computed(() => {
+          return { condition: '晴時多雲', temp: 21, feelsLike: 20, icon: 'fa-solid fa-sun' };
+        });
+
+        // Helper Functions
+        const getCategoryBadgeClass = (cat) => {
+          const map = {
+            '景點': 'bg-orange-100 text-orange-700',
+            '美食': 'bg-red-100 text-red-700',
+            '住宿': 'bg-blue-100 text-blue-700',
+            '購物': 'bg-purple-100 text-purple-700'
+          };
+          return map[cat] || 'bg-gray-100 text-gray-700';
+        };
+
+        const getSpotImage = (title) => {
+          return 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?w=300';
+        };
+
+        const getRouteUrl = (from, to) => {
+          return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.title)}&destination=${encodeURIComponent(to.title)}`;
+        };
+
+        // Modal Handlers
+        const openAddModal = () => {
+          isEdit.value = false;
+          modalForm.value = { id: Date.now(), category: '景點', title: '', desc: '', time: '', ticket: '', note: '' };
+          showModal.value = true;
+        };
+
+        const openEditModal = (item) => {
+          isEdit.value = true;
+          modalForm.value = { ...item };
+          showModal.value = true;
+        };
+
+        const saveItinerary = () => {
+          const list = itineraryData.value[selectedDayIndex.value] || [];
+          if (isEdit.value) {
+            const idx = list.findIndex(i => i.id === modalForm.value.id);
+            if (idx !== -1) list[idx] = { ...modalForm.value };
+          } else {
+            list.push({ ...modalForm.value, id: Date.now() });
+          }
+          itineraryData.value[selectedDayIndex.value] = list;
+          showModal.value = false;
+        };
+
+        const confirmDeleteItinerary = () => {
+          itineraryData.value[selectedDayIndex.value] = itineraryData.value[selectedDayIndex.value].filter(i => i.id !== modalForm.value.id);
+          showModal.value = false;
+        };
+
+        // Shopping
+        const openAddShoppingModal = () => {
+          isShoppingEdit.value = false;
+          shoppingForm.value = { id: Date.now(), name: '', price: 0, img: '' };
+          showShoppingModal.value = true;
+        };
+
+        const editShoppingItem = (item) => {
+          isShoppingEdit.value = true;
+          shoppingForm.value = { ...item };
+          showShoppingModal.value = true;
+        };
+
+        const saveShoppingItem = () => {
+          if (isShoppingEdit.value) {
+            const idx = shoppingList.value.findIndex(i => i.id === shoppingForm.value.id);
+            if (idx !== -1) shoppingList.value[idx] = { ...shoppingForm.value };
+          } else {
+            shoppingList.value.push({ ...shoppingForm.value, id: Date.now() });
+          }
+          showShoppingModal.value = false;
+        };
+
+        const deleteShoppingItem = () => {
+          shoppingList.value = shoppingList.value.filter(i => i.id !== shoppingForm.value.id);
+          showShoppingModal.value = false;
+        };
+
+        const handleShoppingImgUpload = (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (evt) => shoppingForm.value.img = evt.target.result;
+            reader.readAsDataURL(file);
+          }
+        };
+
+        // Expense
+        const openAddExpenseModal = () => {
+          isExpenseEdit.value = false;
+          expenseForm.value = { id: Date.now(), category: '飲食', name: '', date: currentDay.value.date, amount: 0, payment: '現金', note: '' };
+          showExpenseModal.value = true;
+        };
+
+        const editExpenseRecord = (record) => {
+          isExpenseEdit.value = true;
+          expenseForm.value = { ...record };
+          showExpenseModal.value = true;
+        };
+
+        const saveExpenseRecord = () => {
+          if (isExpenseEdit.value) {
+            const idx = expenses.value.findIndex(i => i.id === expenseForm.value.id);
+            if (idx !== -1) expenses.value[idx] = { ...expenseForm.value };
+          } else {
+            expenses.value.push({ ...expenseForm.value, id: Date.now() });
+          }
+          showExpenseModal.value = false;
+        };
+
+        const deleteExpenseRecord = () => {
+          expenses.value = expenses.value.filter(i => i.id !== expenseForm.value.id);
+          showExpenseModal.value = false;
+        };
+
+        // Coupon Upload
+        const uploadCoupon = (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (evt) => coupons.value.push(evt.target.result);
+            reader.readAsDataURL(file);
+          }
+        };
+
+        const removeCoupon = (idx) => {
+          coupons.value.splice(idx, 1);
+        };
+
+        return {
+          currentTab, selectedDayIndex, exchangeRate, calcJpy, days, itineraryData, hotels,
+          shoppingList, expenses, coupons, showModal, isEdit, modalForm, showShoppingModal,
+          isShoppingEdit, shoppingForm, showExpenseModal, isExpenseEdit, expenseForm,
+          currentDay, currentItinerary, totalExpensesJpy, currentWeather,
+          getCategoryBadgeClass, getSpotImage, getRouteUrl, openAddModal, openEditModal,
+          saveItinerary, confirmDeleteItinerary, openAddShoppingModal, editShoppingItem,
+          saveShoppingItem, deleteShoppingItem, handleShoppingImgUpload, openAddExpenseModal,
+          editExpenseRecord, saveExpenseRecord, deleteExpenseRecord, uploadCoupon, removeCoupon
+        };
+      }
+    }).mount('#app');
+  </script>
 </body>
 </html>
