@@ -650,7 +650,7 @@
       if (sessionStorage.getItem('isAuthorized') === 'true') {
         return true;
       }
-      const pass = prompt('請輸入編輯驗證密碼：');
+      const pass = prompt('請輸入編輯驗證密碼(Hint:Birthday)：');
       if (pass === DEFAULT_PASSWORD) {
         sessionStorage.setItem('isAuthorized', 'true');
         return true;
