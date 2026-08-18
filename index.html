@@ -40,8 +40,6 @@
     body {
       background-color: #FFF8F0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      user-select: none;
-      -webkit-user-select: none;
     }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -109,7 +107,6 @@
             :data-id="item.id"
             class="bg-white rounded-2xl p-4 border border-orange-100 app-card relative transition-all"
           >
-            <!-- 上景點至下景點交通時間與 Google 地圖規劃路線 -->
             <a 
               v-if="idx > 0" 
               :href="getRouteUrl(currentItinerary[idx - 1], item)"
@@ -161,14 +158,12 @@
                   <button @click="openEditModal(item)" class="text-gray-400 hover:text-brand-orange p-1">
                     <i class="fa-solid fa-pen-to-square"></i>
                   </button>
-                  <!-- 拖曳排序按鈕 -->
                   <button class="handle text-gray-400 hover:text-brand-orange p-1" title="按住並拉動以排序">
                     <i class="fa-solid fa-bars"></i>
                   </button>
                 </div>
               </div>
 
-              <!-- 左上角景點照片與特色簡述 -->
               <div class="flex gap-3 mt-1">
                 <div class="w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden bg-orange-50 border border-orange-100">
                   <img 
@@ -215,7 +210,16 @@
 
       <!-- ================= 頁面 2: 航班 & 住宿資訊 ================= -->
       <section v-if="currentTab === 'info'" class="space-y-6">
-        <div class="bg-slate-800 text-white rounded-2xl p-5 shadow-lg border border-slate-700">
+        <div 
+          @touchstart="startFlightPress"
+          @touchend="cancelFlightPress"
+          @touchcancel="cancelFlightPress"
+          @mousedown="startFlightPress"
+          @mouseup="cancelFlightPress"
+          @mouseleave="cancelFlightPress"
+          class="bg-slate-800 text-white rounded-2xl p-5 shadow-lg border border-slate-700 cursor-pointer active:opacity-90 transition relative group select-none"
+        >
+          <div class="absolute top-2 right-3 text-[10px] text-amber-400 opacity-60">💡 長按卡片2秒開啟即時動態</div>
           <div class="flex justify-between items-center border-b border-slate-700 pb-3 mb-4">
             <h2 class="font-extrabold text-base flex items-center gap-2 text-amber-400">
               <i class="fa-solid fa-plane-departure"></i> 航班資訊
@@ -310,18 +314,34 @@
         <!-- 各大商店 Coupon 區塊 -->
         <div class="bg-gradient-to-r from-amber-400 to-orange-400 p-4 rounded-2xl text-white shadow-sm">
           <div class="flex justify-between items-center mb-2">
-            <h3 class="font-bold text-sm flex items-center gap-1">
-              <i class="fa-solid fa-ticket"></i> 商店 Coupon 優惠券
-            </h3>
+            <div>
+              <h3 class="font-bold text-sm flex items-center gap-1">
+                <i class="fa-solid fa-ticket"></i> 商店 Coupon 優惠券
+              </h3>
+              <p class="text-[9px] opacity-80 mt-0.5">💡 長按卡片 1 秒可進行編輯/搜尋/刪除</p>
+            </div>
             <label class="bg-white text-brand-orange text-xs px-2.5 py-1 rounded-full font-bold cursor-pointer shadow active:scale-95 transition">
               + 上傳優惠券
               <input type="file" @change="uploadCoupon" class="hidden" accept="image/*">
             </label>
           </div>
           <div class="flex space-x-2 overflow-x-auto no-scrollbar py-1">
-            <div v-for="(coupon, idx) in coupons" :key="idx" class="w-24 h-16 bg-white/20 backdrop-blur rounded-lg flex-shrink-0 relative overflow-hidden border border-white/40 group">
-              <img :src="coupon" class="w-full h-full object-cover">
-              <button @click="removeCoupon(idx)" class="absolute top-1 right-1 bg-red-500/80 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center">×</button>
+            <div 
+              v-for="coupon in coupons" 
+              :key="coupon.id" 
+              @touchstart="startPress('coupon', coupon)"
+              @touchend="cancelPress"
+              @touchcancel="cancelPress"
+              @mousedown="startPress('coupon', coupon)"
+              @mouseup="cancelPress"
+              @mouseleave="cancelPress"
+              class="w-28 h-20 bg-white/20 backdrop-blur rounded-lg flex-shrink-0 relative overflow-hidden border border-white/40 group cursor-pointer active:scale-95 transition flex flex-col justify-end p-1.5"
+            >
+              <img :src="coupon.img" class="w-full h-full object-cover absolute inset-0 z-0">
+              <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent z-0"></div>
+              <span class="relative z-10 text-[10px] font-bold text-white truncate w-full">
+                {{ coupon.name || '優惠券' }}
+              </span>
             </div>
             <div v-if="coupons.length === 0" class="text-xs opacity-80 text-center w-full py-3">
               尚無優惠券，可點選右上角從手機上傳照片
@@ -336,6 +356,7 @@
             :key="item.id"
             @touchstart="startPress('shopping', item)"
             @touchend="cancelPress"
+            @touchcancel="cancelPress"
             @mousedown="startPress('shopping', item)"
             @mouseup="cancelPress"
             @mouseleave="cancelPress"
@@ -381,7 +402,7 @@
         <div class="bg-gradient-to-br from-brand-grassLight to-white p-4 rounded-2xl border border-green-200 shadow-sm space-y-3">
           <div class="flex justify-between items-center">
             <span class="text-xs font-extrabold text-green-800 flex items-center gap-1">
-              <i class="fa-solid fa-calculator"></i> 即時匯率換算
+              <i class="fa-solid fa-calculator"></i> 即時市場牌告匯率換算
             </span>
             <span class="text-[10px] text-green-600 bg-white px-2 py-0.5 rounded-full border border-green-200 font-bold">
               1 JPY ≈ {{ exchangeRate }} TWD
@@ -425,23 +446,32 @@
             :key="record.id"
             @touchstart="startPress('expense', record)"
             @touchend="cancelPress"
+            @touchcancel="cancelPress"
             @mousedown="startPress('expense', record)"
             @mouseup="cancelPress"
             @mouseleave="cancelPress"
-            class="bg-white p-3 rounded-xl border border-orange-100 flex justify-between items-center shadow-sm cursor-pointer active:bg-orange-50/50 transition"
+            class="bg-white p-3 rounded-xl border border-orange-100 flex justify-between items-center shadow-sm cursor-pointer active:bg-orange-50/50 transition gap-3"
           >
-            <div>
-              <div class="flex items-center gap-2">
-                <span class="text-[10px] bg-orange-100 text-brand-orangeDark font-bold px-1.5 py-0.5 rounded">
-                  {{ record.category }}
-                </span>
-                <span class="font-bold text-xs text-gray-800">{{ record.name }}</span>
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+              <!-- 左上角/左側圖片顯示區塊 -->
+              <div v-if="record.img" class="w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden border border-orange-100 bg-orange-50">
+                <img :src="record.img" class="w-full h-full object-cover">
               </div>
-              <div class="text-[10px] text-gray-400 mt-1">
-                {{ record.date }} · {{ record.payment }} {{ record.note ? '· ' + record.note : '' }}
+
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] bg-orange-100 text-brand-orangeDark font-bold px-1.5 py-0.5 rounded flex-shrink-0">
+                    {{ record.category }}
+                  </span>
+                  <span class="font-bold text-xs text-gray-800 truncate">{{ record.name }}</span>
+                </div>
+                <div class="text-[10px] text-gray-400 mt-1 truncate">
+                  {{ record.date }} · {{ record.payment }} {{ record.note ? '· ' + record.note : '' }}
+                </div>
               </div>
             </div>
-            <div class="text-right">
+
+            <div class="text-right flex-shrink-0">
               <div class="font-black text-sm text-gray-800">¥ {{ Number(record.amount).toLocaleString() }}</div>
               <div class="text-[10px] text-gray-400">${{ Math.round(record.amount * exchangeRate) }}</div>
             </div>
@@ -559,11 +589,74 @@
       </div>
     </div>
 
-    <!-- 花費記帳 Modal -->
+    <!-- Coupon 編輯 Modal -->
+    <div v-if="showCouponModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3">
+        <h3 class="font-bold text-base text-gray-800">編輯商店 Coupon 優惠券</h3>
+        
+        <!-- 優惠券預覽圖 -->
+        <div class="w-full h-32 bg-gray-100 rounded-xl overflow-hidden relative flex items-center justify-center border border-gray-200">
+          <img v-if="couponForm.img" :src="couponForm.img" class="w-full h-full object-cover">
+          <span v-else class="text-xs text-gray-400">無圖片</span>
+        </div>
+
+        <div>
+          <label class="text-xs font-bold text-gray-500">更換圖片</label>
+          <div class="mt-1">
+            <label class="bg-gray-100 border text-xs px-3 py-2 rounded-lg font-bold cursor-pointer inline-block">
+              選擇新照片
+              <input type="file" @change="handleCouponImgUpload" class="hidden" accept="image/*">
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-xs font-bold text-gray-500">優惠券 / 商店名稱</label>
+          <input v-model="couponForm.name" placeholder="例：Donki 唐吉訶德 優惠券" class="w-full text-xs border rounded-lg p-2 mt-1">
+        </div>
+
+        <!-- 透過網頁尋找按鈕 -->
+        <div>
+          <a 
+            :href="'https://www.google.com/search?q=' + encodeURIComponent((couponForm.name || '日本 優惠券') + ' coupon')" 
+            target="_blank"
+            class="w-full bg-brand-sky text-white text-xs py-2 rounded-lg font-bold flex items-center justify-center gap-1 shadow hover:bg-sky-500 transition"
+          >
+            <i class="fa-solid fa-magnifying-glass"></i> 透過網頁尋找相關優惠券
+          </a>
+        </div>
+
+        <div class="flex justify-between gap-2 pt-2 border-t border-gray-100">
+          <button @click="deleteCouponItem" class="bg-red-500 text-white text-xs px-3 py-2 rounded-lg font-bold">刪除</button>
+          <div class="flex gap-2 ml-auto">
+            <button @click="showCouponModal = false" class="bg-gray-200 text-gray-600 text-xs px-4 py-2 rounded-lg font-bold">取消</button>
+            <button @click="saveCouponItem" class="bg-brand-orange text-white text-xs px-4 py-2 rounded-lg font-bold">儲存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 花費記帳 Modal (包含相機 ICON 上傳照片按鈕) -->
     <div v-if="showExpenseModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3">
         <h3 class="font-bold text-base text-gray-800">{{ isExpenseEdit ? '編輯花費紀錄' : '新增花費紀錄' }}</h3>
         
+        <!-- 圖片預覽與上傳相機按鈕 -->
+        <div>
+          <label class="text-xs font-bold text-gray-500">單據 / 收據照片</label>
+          <div class="mt-1 flex items-center gap-3">
+            <label class="w-12 h-12 rounded-xl bg-orange-50 border border-brand-orange text-brand-orange flex items-center justify-center cursor-pointer hover:bg-orange-100 active:scale-95 transition shadow-sm">
+              <i class="fa-solid fa-camera text-lg"></i>
+              <input type="file" @change="handleExpenseImgUpload" class="hidden" accept="image/*">
+            </label>
+            <div v-if="expenseForm.img" class="w-12 h-12 rounded-xl overflow-hidden border border-gray-200 relative">
+              <img :src="expenseForm.img" class="w-full h-full object-cover">
+              <button @click="expenseForm.img = ''" class="absolute top-0 right-0 bg-red-500 text-white text-[9px] w-4 h-4 rounded-bl flex items-center justify-center">×</button>
+            </div>
+            <span class="text-xs text-gray-400" v-else>點擊相機圖示拍照或上傳圖片</span>
+          </div>
+        </div>
+
         <div>
           <label class="text-xs font-bold text-gray-500">類別</label>
           <select v-model="expenseForm.category" class="w-full text-xs border rounded-lg p-2 mt-1">
@@ -584,7 +677,9 @@
         <div>
           <label class="text-xs font-bold text-gray-500">日期</label>
           <select v-model="expenseForm.date" class="w-full text-xs border rounded-lg p-2 mt-1">
-            <option v-for="d in days" :key="d.date" :value="d.date">{{ d.date }} ({{ d.week }}) - {{ d.location }}</option>
+            <option v-for="d in days" :key="d.dateFormatted" :value="d.dateFormatted">
+              {{ d.dateFormatted }} - {{ d.location }}
+            </option>
           </select>
         </div>
 
@@ -621,7 +716,6 @@
   </div>
 
   <script>
-    // 單一裝置本機儲存（取代原本的 Firebase 即時資料庫）
     const LOCAL_STORAGE_KEY = 'kyushu-trip-2026';
 
     const loadLocalData = () => {
@@ -642,25 +736,6 @@
       }
     };
 
-    // 預設編輯密碼
-    const DEFAULT_PASSWORD = '0828';
-
-    // 編輯密碼驗證邏輯
-    const checkAuth = () => {
-      if (sessionStorage.getItem('isAuthorized') === 'true') {
-        return true;
-      }
-      const pass = prompt('請輸入編輯驗證密碼：');
-      if (pass === DEFAULT_PASSWORD) {
-        sessionStorage.setItem('isAuthorized', 'true');
-        return true;
-      } else {
-        alert('密碼錯誤！無法進行操作。');
-        return false;
-      }
-    };
-
-    // 依據新附件檔案更新 Day 2 行程與餐點資訊
     const defaultItineraries = [
       [
         { id: '101', category: '航班', title: '星宇航空 JX316 飛往熊本', desc: '搭乘星宇航空由台中直飛熊本空港', time: '15:00-18:15', ticket: '包含於團費', note: '晚餐：日式餐盒', transitTime: '', transitIcon: '' },
@@ -703,12 +778,24 @@
         const calcJpy = ref('');
 
         const days = [
-          { week: '五', date: '10/16', location: '熊本' },
-          { week: '六', date: '10/17', location: '別府' },
-          { week: '日', date: '10/18', location: '福岡' },
-          { week: '一', date: '10/19', location: '福岡' },
-          { week: '二', date: '10/20', location: '太宰府' }
+          { week: '五', date: '10/16', dateFormatted: '10/16(五)', location: '熊本' },
+          { week: '六', date: '10/17', dateFormatted: '10/17(六)', location: '別府' },
+          { week: '日', date: '10/18', dateFormatted: '10/18(日)', location: '福岡' },
+          { week: '一', date: '10/19', dateFormatted: '10/19(一)', location: '福岡' },
+          { week: '二', date: '10/20', dateFormatted: '10/20(二)', location: '太宰府' }
         ];
+
+        const fetchRealTimeExchangeRate = async () => {
+          try {
+            const res = await fetch('https://open.er-api.com/v6/latest/JPY');
+            const data = await res.json();
+            if (data && data.rates && data.rates.TWD) {
+              exchangeRate.value = parseFloat(data.rates.TWD.toFixed(4));
+            }
+          } catch (e) {
+            console.error('即時匯率取得失敗，使用預設匯率', e);
+          }
+        };
 
         const currentWeather = computed(() => {
           const weathers = [
@@ -759,7 +846,6 @@
                 animation: 150,
                 handle: '.handle',
                 onEnd: (evt) => {
-                  if (!checkAuth()) return;
                   const dayList = itineraries.value[selectedDayIndex.value];
                   const movedItem = dayList.splice(evt.oldIndex, 1)[0];
                   dayList.splice(evt.newIndex, 0, movedItem);
@@ -770,14 +856,27 @@
           });
         };
 
-        // 本機資料讀取與初始化
         onMounted(() => {
+          fetchRealTimeExchangeRate();
           const data = loadLocalData();
           if (data) {
             itineraries.value = data.itineraries || defaultItineraries;
             shoppingList.value = data.shoppingList || [];
             expenses.value = data.expenses || [];
-            coupons.value = data.coupons || [];
+            
+            if (data.coupons && data.coupons.length > 0) {
+              if (typeof data.coupons[0] === 'string') {
+                coupons.value = data.coupons.map((cStr, idx) => ({
+                  id: 'cpn_' + Date.now() + '_' + idx,
+                  name: '優惠券 ' + (idx + 1),
+                  img: cStr
+                }));
+              } else {
+                coupons.value = data.coupons;
+              }
+            } else {
+              coupons.value = [];
+            }
           } else {
             itineraries.value = defaultItineraries;
             saveAllToLocal();
@@ -785,7 +884,6 @@
           initSortable();
         });
 
-        // 將目前所有資料整包寫入 localStorage
         const saveAllToLocal = () => {
           saveLocalData({
             itineraries: itineraries.value,
@@ -796,7 +894,6 @@
         };
 
         const currentDay = computed(() => days[selectedDayIndex.value]);
-
         const currentItinerary = computed(() => itineraries.value[selectedDayIndex.value] || []);
 
         const getRouteUrl = (fromItem, toItem) => {
@@ -827,20 +924,17 @@
           return `${title}.jpg`;
         };
 
-        // 行程 Modal 相關
         const showModal = ref(false);
         const isEdit = ref(false);
         const modalForm = ref({ id: null, category: '景點', title: '', desc: '', time: '', ticket: '', note: '' });
 
         const openAddModal = () => {
-          if (!checkAuth()) return;
           isEdit.value = false;
           modalForm.value = { id: 'item_' + Date.now(), category: '景點', title: '', desc: '', time: '', ticket: '', note: '' };
           showModal.value = true;
         };
 
         const openEditModal = (item) => {
-          if (!checkAuth()) return;
           isEdit.value = true;
           modalForm.value = { ...item };
           showModal.value = true;
@@ -867,32 +961,59 @@
           }
         };
 
-        // 購物清單相關
         const showShoppingModal = ref(false);
         const isShoppingEdit = ref(false);
         const shoppingForm = ref({ id: null, name: '', price: 0, img: '' });
 
+        const showCouponModal = ref(false);
+        const couponForm = ref({ id: null, name: '', img: '' });
+
         const uploadCoupon = (e) => {
-          if (!checkAuth()) return;
           const file = e.target.files[0];
           if (file) {
             const reader = new FileReader();
             reader.onload = (evt) => {
-              coupons.value.push(evt.target.result);
+              coupons.value.push({
+                id: 'cpn_' + Date.now(),
+                name: '新優惠券',
+                img: evt.target.result
+              });
               saveAllToLocal();
             };
             reader.readAsDataURL(file);
           }
         };
 
-        const removeCoupon = (idx) => {
-          if (!checkAuth()) return;
-          coupons.value.splice(idx, 1);
-          saveAllToLocal();
+        const handleCouponImgUpload = (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              couponForm.value.img = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+          }
+        };
+
+        const saveCouponItem = () => {
+          const idx = coupons.value.findIndex(c => c.id === couponForm.value.id);
+          if (idx !== -1) {
+            coupons.value[idx] = { ...couponForm.value };
+            saveAllToLocal();
+          }
+          showCouponModal.value = false;
+        };
+
+        const deleteCouponItem = () => {
+          if (confirm('確定要刪除這張優惠券嗎？')) {
+            const idx = coupons.value.findIndex(c => c.id === couponForm.value.id);
+            if (idx !== -1) coupons.value.splice(idx, 1);
+            saveAllToLocal();
+            showCouponModal.value = false;
+          }
         };
 
         const openAddShoppingModal = () => {
-          if (!checkAuth()) return;
           isShoppingEdit.value = false;
           shoppingForm.value = { id: 'shop_' + Date.now(), name: '', price: 0, img: '' };
           showShoppingModal.value = true;
@@ -927,28 +1048,38 @@
           showShoppingModal.value = false;
         };
 
-        // 記帳相關
         const showExpenseModal = ref(false);
         const isExpenseEdit = ref(false);
-        const expenseForm = ref({ id: null, category: '飲食', name: '', date: '10/16', amount: 0, payment: '現金', note: '' });
+        const expenseForm = ref({ id: null, category: '飲食', name: '', date: '10/16(五)', amount: 0, payment: '現金', note: '', img: '' });
 
         const totalExpensesJpy = computed(() => {
           return expenses.value.reduce((sum, item) => sum + Number(item.amount || 0), 0);
         });
 
         const openAddExpenseModal = () => {
-          if (!checkAuth()) return;
           isExpenseEdit.value = false;
           expenseForm.value = {
             id: 'exp_' + Date.now(),
             category: '飲食',
             name: '',
-            date: days[selectedDayIndex.value].date,
+            date: days[selectedDayIndex.value].dateFormatted,
             amount: '',
             payment: '現金',
-            note: ''
+            note: '',
+            img: ''
           };
           showExpenseModal.value = true;
+        };
+
+        const handleExpenseImgUpload = (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              expenseForm.value.img = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+          }
         };
 
         const saveExpenseRecord = () => {
@@ -969,13 +1100,14 @@
           showExpenseModal.value = false;
         };
 
-        // 長按手勢發動 Modal 編輯
         let pressTimer = null;
         const startPress = (type, item) => {
           cancelPress();
           pressTimer = setTimeout(() => {
-            if (!checkAuth()) return;
-            if (type === 'shopping') {
+            if (type === 'coupon') {
+              couponForm.value = { ...item };
+              showCouponModal.value = true;
+            } else if (type === 'shopping') {
               isShoppingEdit.value = true;
               shoppingForm.value = { ...item };
               showShoppingModal.value = true;
@@ -991,6 +1123,22 @@
           if (pressTimer) {
             clearTimeout(pressTimer);
             pressTimer = null;
+          }
+        };
+
+        // 航班資訊卡片長按邏輯 (長按 2 秒並於新分頁開啟)
+        let flightPressTimer = null;
+        const startFlightPress = () => {
+          cancelFlightPress();
+          flightPressTimer = setTimeout(() => {
+            window.open('https://www.flightradar24.com/24.36,121.15/8', '_blank');
+          }, 2000);
+        };
+
+        const cancelFlightPress = () => {
+          if (flightPressTimer) {
+            clearTimeout(flightPressTimer);
+            flightPressTimer = null;
           }
         };
 
@@ -1022,9 +1170,13 @@
           saveItinerary,
           confirmDeleteItinerary,
           coupons,
-          shoppingList,
           uploadCoupon,
-          removeCoupon,
+          showCouponModal,
+          couponForm,
+          handleCouponImgUpload,
+          saveCouponItem,
+          deleteCouponItem,
+          shoppingList,
           showShoppingModal,
           isShoppingEdit,
           shoppingForm,
@@ -1040,10 +1192,13 @@
           isExpenseEdit,
           expenseForm,
           openAddExpenseModal,
+          handleExpenseImgUpload,
           saveExpenseRecord,
           deleteExpenseRecord,
           startPress,
           cancelPress,
+          startFlightPress,
+          cancelFlightPress,
           getCategoryBadgeClass
         }
       }
